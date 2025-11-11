@@ -1,12 +1,15 @@
+use crate::transfer_hook::TransferHook;
 use near_sdk::{AccountId, NearToken, PanicOnDefault, near};
 use near_sdk_contract_tools::{Owner, nft::*, owner::*};
 
 #[derive(PanicOnDefault, Owner, NonFungibleToken)]
+#[non_fungible_token(transfer_hook = "TransferHook")]
 #[near(contract_state)]
 pub struct MyNftContract {}
 
 mod burn;
 mod mint;
+mod transfer_hook;
 
 #[near]
 impl MyNftContract {
