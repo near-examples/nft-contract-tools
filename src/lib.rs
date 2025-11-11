@@ -1,4 +1,4 @@
-use near_sdk::{AccountId, NearToken, PanicOnDefault, env, near};
+use near_sdk::{AccountId, NearToken, PanicOnDefault, near};
 use near_sdk_contract_tools::{Owner, nft::*, owner::*};
 
 #[derive(PanicOnDefault, Owner, NonFungibleToken)]

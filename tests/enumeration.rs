@@ -31,7 +31,7 @@ async fn test_enum_total_supply() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-0".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -39,7 +39,7 @@ async fn test_enum_total_supply() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-1".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -47,7 +47,7 @@ async fn test_enum_total_supply() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-2".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -66,7 +66,7 @@ async fn test_enum_nft_tokens() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-0".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -74,7 +74,7 @@ async fn test_enum_nft_tokens() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-1".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -82,7 +82,7 @@ async fn test_enum_nft_tokens() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-2".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -90,7 +90,7 @@ async fn test_enum_nft_tokens() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-3".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -168,7 +168,7 @@ async fn test_enum_nft_supply_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-0".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -176,7 +176,7 @@ async fn test_enum_nft_supply_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-1".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -184,7 +184,7 @@ async fn test_enum_nft_supply_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-2".into(),
-        alice.id(),
+        Some(alice.id()),
     )
     .await?;
 
@@ -217,7 +217,7 @@ async fn test_enum_nft_tokens_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-0".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -225,7 +225,7 @@ async fn test_enum_nft_tokens_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-1".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -233,7 +233,7 @@ async fn test_enum_nft_tokens_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-2".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -241,7 +241,7 @@ async fn test_enum_nft_tokens_for_owner() -> anyhow::Result<()> {
         &nft_contract.as_account(),
         nft_contract.id(),
         "id-3".into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 

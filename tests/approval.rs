@@ -4,45 +4,12 @@ use near_sdk::serde_json::Value;
 use near_sdk_contract_tools::nft::Token;
 use near_workspaces::Worker;
 use near_workspaces::network::Sandbox;
-use near_workspaces::{AccountId, types::NearToken};
-
-use std::collections::HashMap;
-use std::convert::TryFrom;
+use near_workspaces::types::NearToken;
 
 pub const TOKEN_ID: &str = "0";
 
 const ONE_NEAR: NearToken = NearToken::from_near(1);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
-
-// #[tokio::test]
-// async fn approval() -> anyhow::Result<()> {
-//     let nft_wasm = near_workspaces::compile_project(".").await.unwrap();
-//     let token_receiver_wasm = near_workspaces::compile_project("./tests/contracts/token-receiver")
-//         .await
-//         .unwrap();
-//     let approval_receiver_wasm =
-//         near_workspaces::compile_project("./tests/contracts/approval-receiver")
-//             .await
-//             .unwrap();
-//     let worker: near_workspaces::Worker<near_workspaces::network::Sandbox> =
-//         near_workspaces::sandbox().await?;
-
-//     let simple_approval = test_simple_approve(&worker, &nft_wasm, &token_receiver_wasm);
-//     let approval_with_call = test_approval_with_call(&worker, &nft_wasm, &approval_receiver_wasm);
-//     let approved_account_transfers_token =
-//         test_approved_account_transfers_token(&worker, &nft_wasm);
-//     let revoke = test_revoke(&worker, &nft_wasm, &token_receiver_wasm);
-//     let revoke_all = test_revoke_all(&worker, &nft_wasm, &token_receiver_wasm);
-
-//     // make sure they all pass
-//     simple_approval.await?;
-//     approval_with_call.await?;
-//     approved_account_transfers_token.await?;
-//     revoke.await?;
-//     revoke_all.await?;
-
-//     Ok(())
-// }
 
 #[tokio::test]
 pub async fn test_simple_approve() -> anyhow::Result<()> {
@@ -54,7 +21,7 @@ pub async fn test_simple_approve() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -169,7 +136,7 @@ pub async fn test_approval_with_call() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -197,7 +164,7 @@ pub async fn test_approval_with_call_and_different_msg() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -225,7 +192,7 @@ pub async fn test_approved_account_transfers_token() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &alice.id()).await?;
@@ -276,7 +243,7 @@ pub async fn test_revoke() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -387,7 +354,7 @@ pub async fn test_revoke_all() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 

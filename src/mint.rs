@@ -1,12 +1,8 @@
-use std::fs::metadata;
-
 use crate::{MyNftContract, MyNftContractExt};
-use near_sdk::{AccountId, assert_one_yocto, env, log, near};
+use near_sdk::{AccountId, env, log, near};
 use near_sdk_contract_tools::{
     ft::Nep145,
-    nft::{
-        ContractMetadata, Nep171Controller, Nep171Mint, Nep177Controller, TokenId, TokenMetadata,
-    },
+    nft::{Nep177Controller, TokenId, TokenMetadata},
 };
 
 #[near]
@@ -41,15 +37,5 @@ impl MyNftContract {
             &metadata,
         )
         .unwrap_or_else(|e| env::panic_str(&e.to_string()));
-
-        // Nep171Controller::mint(
-        //     self,
-        //     &Nep171Mint {
-        //         token_ids: vec![token_id.clone()],
-        //         receiver_id: env::predecessor_account_id().into(),
-        //         memo: None,
-        //     },
-        // )
-        // .unwrap_or_else(|e| env::panic_str(&e.to_string()));
     }
 }

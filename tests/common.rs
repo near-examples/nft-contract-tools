@@ -101,7 +101,7 @@ pub async fn mint_nft(
     minter: &Account,
     contract_id: &AccountId,
     token_id: TokenId,
-    token_owner_id: &AccountId,
+    token_owner_id: Option<&AccountId>,
 ) -> anyhow::Result<()> {
     let token_metadata = TokenMetadata {
         title: Some(format!("Title for {token_id}")),

@@ -3,12 +3,12 @@
 [![](https://img.shields.io/badge/⋈%20Examples-Basics-green)](https://docs.near.org/tutorials/welcome)
 [![](https://img.shields.io/badge/Contract-Rust-red)](contract-rs)
 
-This repository contains an example implementation of a [non-fungible token] contract in Rust which uses [near-sdk-contract-tools](https://github.com/near/near-sdk-contract-tools).
+This repository contains an example implementation of a non-fungible token contract in Rust which uses [near-sdk-contract-tools](https://github.com/near/near-sdk-contract-tools).
 
-  [non-fungible token]: https://nomicon.io/Standards/NonFungibleToken/README.html
-  [near-sdk-contract-tools]: https://github.com/near/near-sdk-contract-tools)
-  [near-contract-standards]: https://github.com/near/near-sdk-rs/tree/master/near-contract-standards
-  [near-workspaces-rs]: https://github.com/near/near-workspaces-rs
+- `non-fungible token`: https://nomicon.io/Standards/NonFungibleToken/README.html
+- `near-sdk-contract-tools`: https://github.com/near/near-sdk-contract-tools
+- `near-contract-standards`: https://github.com/near/near-sdk-rs/tree/master/near-contract-standards
+- `near-workspaces-rs`: https://github.com/near/near-workspaces-rs
 
 >**Note**: If you'd like to learn how to create an NFT contract from scratch that explores every aspect of the [NEP-171](https://github.com/near/NEPs/blob/master/neps/nep-0171.md) standard including an NFT marketplace, check out the NFT [Zero to Hero Tutorial](https://docs.near.org/tutorials/nfts/introduction).
 
@@ -35,14 +35,8 @@ cargo test
 To deploy manually, install [`cargo-near`](https://github.com/near/cargo-near) and run:
 
 ```bash
-# Create a new account
-cargo near create-dev-account
-
-# Deploy the contract on it
-cargo near deploy <account-id>
-
-# Initialize the contract
-near call <account-id> new_default_meta '{"owner_id": "<account-id>"}' --accountId <account-id>
+# Deploy the contract and initialize it
+cargo near deploy build-non-reproducible-wasm <account-id> with-init-call new json-args '{"owner_id":"<account-id>", "metadata": {"name": "GO TEAM", "symbol": "GOAT", "icon": "https://bafybeidl4hjbpdr6u6xvlrizwxbrfcyqurzvcnn5xoilmcqbxfbdwrmp5m.ipfs.dweb.link/", "spec": "nft-1.0.0"}}' prepaid-gas '100.0 Tgas' attached-deposit '0 NEAR' network-config testnet sign-with-keychain send
 ```
 
 ## Basic methods
@@ -51,7 +45,7 @@ near call <account-id> new_default_meta '{"owner_id": "<account-id>"}' --account
 near view <account-id> nft_metadata
 
 # Mint a NFT
-near call <account-id> nft_mint '{"token_id": "0", "token_owner_id": "<account-id>", "token_metadata": { "title": "Olympus Mons", "description": "Tallest mountain in charted solar system", "media": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Olympus_Mons_alt.jpg/1024px-Olympus_Mons_alt.jpg", "copies": 1}}' --accountId <account-id> --deposit 0.1
+near call <account-id> nft_mint '{"token_id": "0", "owner_id": "<account-id>", "metadata": {"title": "Olympus Mons", "description": "Tallest mountain in charted solar system", "media": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Olympus_Mons_alt.jpg/1024px-Olympus_Mons_alt.jpg", "copies": "1"}}' --accountId <account-id> --deposit 0.1
 
 # View tokens for owner
 near view <account-id> nft_tokens_for_owner '{"account_id": "<owner_id>"}'

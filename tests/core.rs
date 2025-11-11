@@ -6,62 +6,6 @@ use near_workspaces::{Worker, network::Sandbox, types::NearToken};
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 const TOKEN_ID: &str = "id-0";
 
-// #[tokio::test]
-// async fn core() -> anyhow::Result<()> {
-//     let nft_wasm = near_workspaces::compile_project(".").await.unwrap();
-//     let token_receiver_wasm = near_workspaces::compile_project("./tests/contracts/token-receiver")
-//         .await
-//         .unwrap();
-
-//     let worker: near_workspaces::Worker<near_workspaces::network::Sandbox> =
-//         near_workspaces::sandbox().await?;
-
-//     let test_transfer_to_not_registered_account?
-// let transfer_call_fast_return_to_sender = test_transfer_call_fast_return_to_sender(
-//     &worker,
-//     &nft_wasm,
-//     &token_receiver_wasm,
-// );
-// let transfer_call_slow_return_to_sender = test_transfer_call_slow_return_to_sender(
-//     &worker,
-//     &nft_wasm,
-//     &token_receiver_wasm,
-// );
-// let transfer_call_fast_keep_with_sender = test_transfer_call_fast_keep_with_sender(
-//     &worker,
-//     &nft_wasm,
-//     &token_receiver_wasm,
-// );
-// let transfer_call_slow_keep_with_sender = test_transfer_call_slow_keep_with_sender(
-//     &worker,
-//     &nft_wasm,
-//     &token_receiver_wasm,
-// );
-// let transfer_call_receiver_panics = test_transfer_call_receiver_panics(
-//     &worker,
-//     &nft_wasm,
-//     &token_receiver_wasm,
-// );
-// let transfer_call_receiver_panics_and_nft_resolve_transfer_produces_no_log_if_not_enough_gas = test_transfer_call_receiver_panics_and_nft_resolve_transfer_produces_no_log_if_not_enough_gas(&worker, &nft_wasm, &token_receiver_wasm);
-// let simple_transfer_no_logs_on_failure = test_simple_transfer_no_logs_on_failure(
-//     &worker,
-//     &nft_wasm,
-// );
-
-// test_transfer_to_not_registered_account.await?;
-// test_transfer_to_registered_account.await?;
-// transfer_call_fast_return_to_sender.await?;
-// transfer_call_slow_return_to_sender.await?;
-// transfer_call_fast_keep_with_sender.await?;
-// transfer_call_slow_keep_with_sender.await?;
-// transfer_call_receiver_panics.await?;
-// transfer_call_receiver_panics_and_nft_resolve_transfer_produces_no_log_if_not_enough_gas
-//     .await?;
-// simple_transfer_no_logs_on_failure.await?;
-
-//     Ok(())
-// }
-
 #[tokio::test]
 async fn test_transfer_to_not_registered_account() -> anyhow::Result<()> {
     let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
@@ -72,7 +16,7 @@ async fn test_transfer_to_not_registered_account() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -112,7 +56,7 @@ async fn test_transfer_to_registered_account() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -164,7 +108,7 @@ async fn test_transfer_call_fast_return_to_sender() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
@@ -205,7 +149,7 @@ async fn test_transfer_call_slow_return_to_sender() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
@@ -245,7 +189,7 @@ async fn test_transfer_call_fast_keep_with_sender() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
@@ -289,7 +233,7 @@ async fn test_transfer_call_slow_keep_with_sender() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
@@ -332,7 +276,7 @@ async fn test_transfer_call_receiver_panics() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
@@ -376,7 +320,7 @@ async fn test_transfer_call_receiver_panics_and_nft_resolve_transfer_produces_no
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
     common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
@@ -419,7 +363,7 @@ async fn test_simple_transfer_no_logs_on_failure() -> anyhow::Result<()> {
         nft_contract.as_account(),
         nft_contract.id(),
         TOKEN_ID.into(),
-        nft_contract.id(),
+        Some(nft_contract.id()),
     )
     .await?;
 
