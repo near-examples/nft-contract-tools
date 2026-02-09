@@ -2124,6 +2124,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo-near-build",
+ "cargo-platform",
  "near-api",
  "near-contract-standards",
  "near-sandbox",
