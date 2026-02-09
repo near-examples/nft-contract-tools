@@ -16,14 +16,6 @@ jobs:
       - name: Install cargo-near
         run: cargo install cargo-near
 
-      - name: "Install stable Rust version"
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.86.0
-          default: true
-          target: wasm32-unknown-unknown
-
       - name: Install and test modules
         run: |
           cargo test
