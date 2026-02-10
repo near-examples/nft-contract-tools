@@ -14,7 +14,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
     
       - name: Install cargo-near
-        run: cargo install cargo-near
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/latest/download/cargo-near-installer.sh | sh
 
       - name: Install and test modules
         run: |
