@@ -86,7 +86,7 @@ async fn test_transfer_to_registered_account() -> anyhow::Result<()> {
     assert!(res.is_success());
 
     // A single NFT transfer event should have been logged:
-    assert_eq!(res.logs().len(), 1);
+    assert_eq!(common::transfer_events(&res.logs()), 1);
 
     let token = nft_contract
         .call("nft_token")
@@ -208,7 +208,7 @@ async fn test_transfer_call_fast_keep_with_sender() -> anyhow::Result<()> {
         .transact()
         .await?;
     assert!(res.is_success());
-    assert_eq!(res.logs().len(), 2);
+    assert_eq!(common::transfer_events(&res.logs()), 1);
 
     let token = nft_contract
         .call("nft_token")
@@ -297,7 +297,7 @@ async fn test_transfer_call_receiver_panics() -> anyhow::Result<()> {
     assert!(res.is_success());
 
     // Prints final logs
-    assert_eq!(res.logs().len(), 3);
+    assert_eq!(common::transfer_events(&res.logs()), 2);
 
     let token = nft_contract
         .call("nft_token")
