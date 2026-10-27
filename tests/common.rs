@@ -11,23 +11,31 @@ use near_workspaces::types::NearToken;
 use near_workspaces::{Account, Contract, DevNetwork, Worker};
 
 static NFT_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let artifact = cargo_near_build::build(BuildOpts {
+    let artifact = cargo_near_build::build_with_cli(BuildOpts {
         no_abi: true,
         no_embed_abi: true,
+        no_locked: true,
         ..Default::default()
     })
     .expect("Could not compile NFT contract for tests");
 
-    let contract_wasm = std::fs::read(&artifact.path)
-        .expect(format!("Could not read NFT WASM file from {}", artifact.path).as_str());
+    let contract_wasm = std::fs::read(&artifact)
+        .expect(format!("Could not read NFT WASM file from {}", artifact).as_str());
 
     contract_wasm
 });
 
 static TOKEN_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let artifact_path = "tests/contracts/token-receiver/res/token_receiver.wasm";
+    let artifact_path = cargo_near_build::build_with_cli(BuildOpts {
+        manifest_path: Some("tests/contracts/token-receiver/Cargo.toml".into()),
+        no_abi: true,
+        no_embed_abi: true,
+        no_locked: true,
+        ..Default::default()
+    })
+    .expect("Could not compile token-receiver fixture");
 
-    let contract_wasm = std::fs::read(artifact_path).expect(
+    let contract_wasm = std::fs::read(&artifact_path).expect(
         format!(
             "Could not read Token Receiver Contract WASM file from {}",
             artifact_path
@@ -39,9 +47,16 @@ static TOKEN_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
 });
 
 static APPROVAL_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let artifact_path = "tests/contracts/approval-receiver/res/approval_receiver.wasm";
+    let artifact_path = cargo_near_build::build_with_cli(BuildOpts {
+        manifest_path: Some("tests/contracts/approval-receiver/Cargo.toml".into()),
+        no_abi: true,
+        no_embed_abi: true,
+        no_locked: true,
+        ..Default::default()
+    })
+    .expect("Could not compile approval-receiver fixture");
 
-    let contract_wasm = std::fs::read(artifact_path).expect(
+    let contract_wasm = std::fs::read(&artifact_path).expect(
         format!(
             "Could not read Approval Receiver Contract WASM file from {}",
             artifact_path
@@ -130,4 +145,13 @@ pub async fn mint_nft(
     assert!(res.is_success());
 
     Ok(())
+}
+
+/// Count standardized transfer events, independently of diagnostic/receiver logs.
+pub fn transfer_events(logs: &[&str]) -> usize {
+    logs.iter().filter(|log| {
+        log.strip_prefix("EVENT_JSON:")
+            .and_then(|json| near_sdk::serde_json::from_str::<near_sdk::serde_json::Value>(json).ok())
+            .is_some_and(|event| event["standard"] == "nep171" && event["event"] == "nft_transfer")
+    }).count()
 }
