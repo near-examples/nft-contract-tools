@@ -8,7 +8,7 @@ The contracts use NEAR SDK 5.29.1 and the pinned Rust 1.97.1 toolchain. Install 
 cargo install cargo-near --version 0.21.1 --locked --no-default-features
 ```
 
-Contract builds and integration-test fixtures compile from source; no live network account is required for tests.
+Contract builds and both receiver fixtures compile from source with their committed lockfiles. Integration tests use `near-sandbox` and `near-api` against a local RPC endpoint. A maximum of two sandboxes run concurrently per test binary to avoid setup timeouts. No live network account is required for tests.
 
 
 [![](https://img.shields.io/badge/⋈%20Examples-Basics-green)](https://docs.near.org/tutorials/welcome)
@@ -19,7 +19,8 @@ This repository contains an example implementation of a non-fungible token contr
 - `non-fungible token`: https://nomicon.io/Standards/NonFungibleToken/README.html
 - `near-sdk-contract-tools`: https://github.com/near/near-sdk-contract-tools
 - `near-contract-standards`: https://github.com/near/near-sdk-rs/tree/master/near-contract-standards
-- `near-workspaces-rs`: https://github.com/near/near-workspaces-rs
+- `near-sandbox`: https://github.com/near/near-sandbox-rs
+- `near-api`: https://github.com/near/near-api-rs
 
 >**Note**: If you'd like to learn how to create an NFT contract from scratch that explores every aspect of the [NEP-171](https://github.com/near/NEPs/blob/master/neps/nep-0171.md) standard including an NFT marketplace, check out the NFT [Zero to Hero Tutorial](https://docs.near.org/tutorials/nfts/introduction).
 
@@ -38,7 +39,7 @@ cargo near build
 ## How to Test Locally?
 
 ```bash
-cargo test
+cargo test --locked
 ```
 
 ## How to Deploy?

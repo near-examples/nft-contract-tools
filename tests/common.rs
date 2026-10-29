@@ -1,20 +1,19 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use cargo_near_build::BuildOpts;
+use near_api::{Account, Contract, NearToken, NetworkConfig, Signer};
 use near_contract_standards::non_fungible_token::TokenId;
 
+use near_sandbox::Sandbox;
 use near_sdk::AccountId;
 use near_sdk::json_types::U64;
 use near_sdk::serde_json::json;
 use near_sdk_contract_tools::nft::{ContractMetadata, TokenMetadata};
-use near_workspaces::types::NearToken;
-use near_workspaces::{Account, Contract, DevNetwork, Worker};
 
 static NFT_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
     let artifact = cargo_near_build::build_with_cli(BuildOpts {
         no_abi: true,
         no_embed_abi: true,
-        no_locked: true,
         ..Default::default()
     })
     .expect("Could not compile NFT contract for tests");
@@ -30,7 +29,6 @@ static TOKEN_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
         manifest_path: Some("tests/contracts/token-receiver/Cargo.toml".into()),
         no_abi: true,
         no_embed_abi: true,
-        no_locked: true,
         ..Default::default()
     })
     .expect("Could not compile token-receiver fixture");
@@ -51,7 +49,6 @@ static APPROVAL_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
         manifest_path: Some("tests/contracts/approval-receiver/Cargo.toml".into()),
         no_abi: true,
         no_embed_abi: true,
-        no_locked: true,
         ..Default::default()
     })
     .expect("Could not compile approval-receiver fixture");
@@ -67,11 +64,64 @@ static APPROVAL_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
     contract_wasm
 });
 
-pub async fn init_contracts(
-    worker: &Worker<impl DevNetwork>,
-) -> anyhow::Result<(Contract, Contract, Contract)> {
-    let nft_contract = worker.dev_deploy(&NFT_CONTRACT_WASM).await?;
+static SANDBOX_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
+pub struct TestSandbox {
+    sandbox: Sandbox,
+    _permit: tokio::sync::SemaphorePermit<'static>,
+}
+
+impl std::ops::Deref for TestSandbox {
+    type Target = Sandbox;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sandbox
+    }
+}
+
+pub async fn init_sandbox() -> anyhow::Result<(TestSandbox, NetworkConfig)> {
+    LazyLock::force(&NFT_CONTRACT_WASM);
+    LazyLock::force(&TOKEN_RECEIVER_CONTRACT_WASM);
+    LazyLock::force(&APPROVAL_RECEIVER_CONTRACT_WASM);
+    let permit = SANDBOX_SLOTS.acquire().await?;
+    // Initialize the sandbox
+    let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
+    let sandbox_network =
+        near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
+
+    Ok((
+        TestSandbox {
+            sandbox,
+            _permit: permit,
+        },
+        sandbox_network,
+    ))
+}
+pub async fn init_contracts(
+    sandbox: &Sandbox,
+    sandbox_network: &NetworkConfig,
+) -> anyhow::Result<(Contract, Contract, Contract, Arc<Signer>)> {
+    let nft_contract = create_subaccount(&sandbox, "gbook.sandbox")
+        .await
+        .unwrap()
+        .as_contract();
+    let token_receiver_contract = create_subaccount(&sandbox, "token-receiver.sandbox")
+        .await
+        .unwrap()
+        .as_contract();
+    let approval_receiver_contract = create_subaccount(&sandbox, "approval-receiver.sandbox")
+        .await
+        .unwrap()
+        .as_contract();
+
+    // Initialize signer for the contract deployment
+    let signer = near_api::Signer::from_secret_key(
+        near_sandbox::config::DEFAULT_GENESIS_ACCOUNT_PRIVATE_KEY
+            .parse()
+            .unwrap(),
+    )?;
+
+    // Initialize the contract metadata
     let metadata = ContractMetadata {
         spec: "nft-2.1.0".to_string(),
         name: "MyNftContract".to_string(),
@@ -81,40 +131,68 @@ pub async fn init_contracts(
         reference: None,
         reference_hash: None,
     };
-    let res = nft_contract
-        .call("new")
-        .args_json(json!({"owner_id": nft_contract.id(), "metadata": metadata}))
-        .max_gas()
-        .transact()
-        .await?;
-    assert!(res.is_success());
-
-    let token_receiver_contract = worker.dev_deploy(&TOKEN_RECEIVER_CONTRACT_WASM).await?;
-    let approval_receiver_contract = worker.dev_deploy(&APPROVAL_RECEIVER_CONTRACT_WASM).await?;
+    // Deploy the nft contract
+    near_api::Contract::deploy(nft_contract.account_id().clone())
+        .use_code(NFT_CONTRACT_WASM.to_vec())
+        .with_init_call(
+            "new",
+            json!({"owner_id": nft_contract.account_id().clone(), "metadata": metadata}),
+        )?
+        .with_signer(signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+    // Deploy the token receiver contract
+    near_api::Contract::deploy(token_receiver_contract.account_id().clone())
+        .use_code(TOKEN_RECEIVER_CONTRACT_WASM.to_vec())
+        .without_init_call()
+        .with_signer(signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+    // Deploy the approval receiver contract
+    near_api::Contract::deploy(approval_receiver_contract.account_id().clone())
+        .use_code(APPROVAL_RECEIVER_CONTRACT_WASM.to_vec())
+        .without_init_call()
+        .with_signer(signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
 
     Ok((
         nft_contract,
         token_receiver_contract,
         approval_receiver_contract,
+        signer,
     ))
 }
 
-pub async fn register_user(contract: &Contract, account_id: &AccountId) -> anyhow::Result<()> {
-    let res = contract
-        .call("storage_deposit")
-        .args_json((account_id, Option::<bool>::None))
-        .max_gas()
+pub async fn register_user(
+    contract: &Contract,
+    signer: Arc<Signer>,
+    sandbox_network: &NetworkConfig,
+    account_id: &AccountId,
+) -> anyhow::Result<()> {
+    contract
+        .call_function(
+            "storage_deposit",
+            json!({"account_id": account_id, "registration_only": Option::<bool>::None}),
+        )
+        .transaction()
         .deposit(NearToken::from_yoctonear(7000000000000000000000))
-        .transact()
-        .await?;
-    assert!(res.is_success());
+        .with_signer(contract.account_id().clone(), signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
 
     Ok(())
 }
 
 pub async fn mint_nft(
+    contract: &Contract,
+    signer: Arc<Signer>,
+    sandbox_network: &NetworkConfig,
     minter: &Account,
-    contract_id: &AccountId,
     token_id: TokenId,
     token_owner_id: Option<&AccountId>,
 ) -> anyhow::Result<()> {
@@ -132,26 +210,44 @@ pub async fn mint_nft(
         reference: None,
         reference_hash: None,
     };
-    let res = minter
-        .call(contract_id, "nft_mint")
-        .args_json(
+    contract
+        .call_function(
+            "nft_mint",
             json!({"token_id": token_id, "metadata": token_metadata, "owner_id": Some(token_owner_id)}),
         )
-        .max_gas()
+        .transaction()
         .deposit(NearToken::from_millinear(21))
-        .transact()
-        .await?;
-    println!("Mint NFT: {:?}", res);
-    assert!(res.is_success());
-
+        .with_signer(minter.account_id().clone(), signer.clone())
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
     Ok(())
+}
+
+pub async fn create_subaccount(
+    sandbox: &near_sandbox::Sandbox,
+    name: &str,
+) -> testresult::TestResult<near_api::Account> {
+    let account_id: AccountId = name.parse().unwrap();
+    sandbox
+        .create_account(account_id.clone())
+        .initial_balance(NearToken::from_near(10))
+        .send()
+        .await?;
+    Ok(near_api::Account(account_id))
 }
 
 /// Count standardized transfer events, independently of diagnostic/receiver logs.
 pub fn transfer_events(logs: &[&str]) -> usize {
-    logs.iter().filter(|log| {
-        log.strip_prefix("EVENT_JSON:")
-            .and_then(|json| near_sdk::serde_json::from_str::<near_sdk::serde_json::Value>(json).ok())
-            .is_some_and(|event| event["standard"] == "nep171" && event["event"] == "nft_transfer")
-    }).count()
+    logs.iter()
+        .filter(|log| {
+            log.strip_prefix("EVENT_JSON:")
+                .and_then(|json| {
+                    near_sdk::serde_json::from_str::<near_sdk::serde_json::Value>(json).ok()
+                })
+                .is_some_and(|event| {
+                    event["standard"] == "nep171" && event["event"] == "nft_transfer"
+                })
+        })
+        .count()
 }
