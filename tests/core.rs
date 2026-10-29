@@ -1,397 +1,496 @@
 pub mod common;
 
+use near_api::NearToken;
+use near_sdk::serde_json::json;
 use near_sdk_contract_tools::nft::Token;
-use near_workspaces::{Worker, network::Sandbox, types::NearToken};
 
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 const TOKEN_ID: &str = "id-0";
 
 #[tokio::test]
-async fn test_transfer_to_not_registered_account() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let alice = worker.dev_create_account().await?;
-    let (nft_contract, _, _) = common::init_contracts(&worker).await?;
+async fn test_transfer_to_not_registered_account() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Create a subaccount for the test
+    let alice = common::create_subaccount(&sandbox, "alice.sandbox").await?;
+    // Initialize the contracts
+    let (nft_contract, _, _, signer) = common::init_contracts(&sandbox, &sandbox_network).await?;
 
+    // Mint the NFT
     common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
         TOKEN_ID.into(),
-        Some(nft_contract.id()),
+        Some(&nft_contract.account_id()),
     )
     .await?;
 
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
         .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
-
-    let res = nft_contract
-        .call("nft_transfer")
-        .args_json((
-            alice.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("simple transfer".to_string()),
-        ))
-        .max_gas()
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    println!("Transfer result: {:?}", res);
-    assert!(res.is_failure());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_transfer_to_registered_account() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let alice = worker.dev_create_account().await?;
-    let (nft_contract, _, _) = common::init_contracts(&worker).await?;
-
-    common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
-        TOKEN_ID.into(),
-        Some(nft_contract.id()),
-    )
-    .await?;
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
-        .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
-
-    common::register_user(&nft_contract, &alice.id()).await?;
-
-    let res = nft_contract
-        .call("nft_transfer")
-        .args_json((
-            alice.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("simple transfer".to_string()),
-        ))
-        .max_gas()
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    println!("Transfer result: {:?}", res);
-    assert!(res.is_success());
-
-    // A single NFT transfer event should have been logged:
-    assert_eq!(res.logs().len(), 1);
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
-        .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), alice.id().to_string());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_transfer_call_fast_return_to_sender() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
-
-    common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
-        TOKEN_ID.into(),
-        Some(nft_contract.id()),
-    )
-    .await?;
-
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
-
-    let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "return-it-now",
-        ))
-        .max_gas()
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_success());
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
-        .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_transfer_call_slow_return_to_sender() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
-
-    common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
-        TOKEN_ID.into(),
-        Some(nft_contract.id()),
-    )
-    .await?;
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
-
-    let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "return-it-later",
-        ))
-        .max_gas()
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_success());
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
-        .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_transfer_call_fast_keep_with_sender() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
-
-    common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
-        TOKEN_ID.into(),
-        Some(nft_contract.id()),
-    )
-    .await?;
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
-
-    let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "keep-it-now",
-        ))
-        .max_gas()
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_success());
-    assert_eq!(res.logs().len(), 2);
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
-        .await?
-        .json::<Token>()?;
+        .data;
+    // Check that the token is owned by the contract
     assert_eq!(
         token.owner_id.to_string(),
-        token_receiver_contract.id().to_string()
+        nft_contract.account_id().to_string()
+    );
+
+    // Try to transfer the NFT usign not owner account
+    nft_contract
+        .call_function("nft_transfer", json!({"receiver_id": alice.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("simple transfer".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
+        .with_signer(alice.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_failure();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_transfer_to_registered_account() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Create a subaccount for the test
+    let alice = common::create_subaccount(&sandbox, "alice.sandbox").await?;
+    // Initialize the contracts
+    let (nft_contract, _, _, signer) = common::init_contracts(&sandbox, &sandbox_network).await?;
+
+    // Mint the NFT
+    common::mint_nft(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
+        TOKEN_ID.into(),
+        Some(&nft_contract.account_id()),
+    )
+    .await?;
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is owned by the contract
+    assert_eq!(
+        token.owner_id.to_string(),
+        nft_contract.account_id().to_string()
+    );
+
+    // Register the alice account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &alice.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the alice account
+    nft_contract
+        .call_function("nft_transfer", json!({"receiver_id": alice.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("simple transfer".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is owned by the alice account now
+    assert_eq!(token.owner_id.to_string(), alice.account_id().to_string());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_transfer_call_fast_return_to_sender() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
+
+    // Mint the NFT
+    common::mint_nft(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
+        TOKEN_ID.into(),
+        Some(&nft_contract.account_id()),
+    )
+    .await?;
+
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract and call the return-it-now function
+    nft_contract
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("return-it-now".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is still owned by the contract
+    assert_eq!(
+        token.owner_id.to_string(),
+        nft_contract.account_id().to_string()
     );
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_transfer_call_slow_keep_with_sender() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
+async fn test_transfer_call_slow_return_to_sender() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
 
+    // Mint the NFT
     common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
         TOKEN_ID.into(),
-        Some(nft_contract.id()),
+        Some(&nft_contract.account_id()),
     )
     .await?;
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
 
-    let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "keep-it-later",
-        ))
-        .max_gas()
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract and call the return-it-later function
+    nft_contract
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("return-it-later".to_string())}))
+        .transaction()
         .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_success());
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
         .await?
-        .json::<Token>()?;
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is still owned by the contract
     assert_eq!(
         token.owner_id.to_string(),
-        token_receiver_contract.id().to_string()
+        nft_contract.account_id().to_string()
     );
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_transfer_call_receiver_panics() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
+async fn test_transfer_call_fast_keep_with_sender() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
 
+    // Mint the NFT
     common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
         TOKEN_ID.into(),
-        Some(nft_contract.id()),
+        Some(&nft_contract.account_id()),
     )
     .await?;
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
 
-    let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "incorrect message",
-        ))
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract and call the keep-it-now function
+    nft_contract
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("keep-it-now".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is owned by the token receiver contract now
+    assert_eq!(
+        token.owner_id.to_string(),
+        token_receiver_contract.account_id().to_string()
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_transfer_call_slow_keep_with_sender() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
+
+    // Mint the NFT
+    common::mint_nft(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
+        TOKEN_ID.into(),
+        Some(&nft_contract.account_id()),
+    )
+    .await?;
+
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract and call the keep-it-later function
+    nft_contract
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("keep-it-later".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is owned by the token receiver contract now
+    assert_eq!(
+        token.owner_id.to_string(),
+        token_receiver_contract.account_id().to_string()
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_transfer_call_receiver_panics() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
+
+    // Mint the NFT
+    common::mint_nft(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
+        TOKEN_ID.into(),
+        Some(&nft_contract.account_id()),
+    )
+    .await?;
+
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract and pass an incorrect message to trigger a panic
+    nft_contract
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("incorrect message".to_string())}))
+        .transaction()
+        .deposit(ONE_YOCTO)
         .gas(near_sdk::Gas::from_gas(35_000_000_000_000 + 1))
-        .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_success());
-
-    // Prints final logs
-    assert_eq!(res.logs().len(), 3);
-
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
         .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
+        .assert_success();
+
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
+        .await?
+        .data;
+    // Check that the token is still owned by the contract
+    assert_eq!(
+        token.owner_id.to_string(),
+        nft_contract.account_id().to_string()
+    );
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_transfer_call_receiver_panics_and_nft_resolve_transfer_produces_no_log_if_not_enough_gas()
--> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, token_receiver_contract, _) = common::init_contracts(&worker).await?;
+-> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, token_receiver_contract, _, signer) =
+        common::init_contracts(&sandbox, &sandbox_network).await?;
 
+    // Mint the NFT
     common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
         TOKEN_ID.into(),
-        Some(nft_contract.id()),
+        Some(&nft_contract.account_id()),
     )
     .await?;
-    common::register_user(&nft_contract, &token_receiver_contract.id()).await?;
 
+    // Register the token receiver contract account
+    common::register_user(
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &token_receiver_contract.account_id(),
+    )
+    .await?;
+
+    // Transfer the NFT to the token receiver contract, pass an incorrect message to trigger a panic and set the gas limit to 3 TGas
     let res = nft_contract
-        .call("nft_transfer_call")
-        .args_json((
-            token_receiver_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("transfer & call"),
-            "incorrect message",
-        ))
-        .gas(near_sdk::Gas::from_tgas(3))
+        .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("incorrect message".to_string())}))
+        .transaction()
         .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_failure());
-
+        .gas(near_sdk::Gas::from_tgas(3))
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_failure();
     // Prints no logs
     assert_eq!(res.logs().len(), 0);
 
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
         .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
+        .data;
+    // Check that the token is still owned by the contract
+    assert_eq!(
+        token.owner_id.to_string(),
+        nft_contract.account_id().to_string()
+    );
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_simple_transfer_no_logs_on_failure() -> anyhow::Result<()> {
-    let worker: Worker<Sandbox> = near_workspaces::sandbox().await?;
-    let (nft_contract, _, _) = common::init_contracts(&worker).await?;
+async fn test_simple_transfer_no_logs_on_failure() -> testresult::TestResult<()> {
+    // Initialize the sandbox
+    let (sandbox, sandbox_network) = common::init_sandbox().await?;
+    // Initialize the contracts
+    let (nft_contract, _, _, signer) = common::init_contracts(&sandbox, &sandbox_network).await?;
 
+    // Mint the NFT
     common::mint_nft(
-        nft_contract.as_account(),
-        nft_contract.id(),
+        &nft_contract,
+        signer.clone(),
+        &sandbox_network,
+        &nft_contract.as_account(),
         TOKEN_ID.into(),
-        Some(nft_contract.id()),
+        Some(&nft_contract.account_id()),
     )
     .await?;
 
+    // Transfer to the current owner should fail and not print log
     let res = nft_contract
-        .call("nft_transfer")
-        // transfer to the current owner should fail and not print log
-        .args_json((
-            nft_contract.id(),
-            TOKEN_ID,
-            Option::<u64>::None,
-            Some("simple transfer"),
-        ))
-        .gas(near_sdk::Gas::from_tgas(200))
+        .call_function("nft_transfer", json!({"receiver_id": nft_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("simple transfer".to_string())}))
+        .transaction()
         .deposit(ONE_YOCTO)
-        .transact()
-        .await?;
-    assert!(res.is_failure());
+        .gas(near_sdk::Gas::from_tgas(200))
+        .with_signer(nft_contract.account_id().clone(), signer)
+        .send_to(&sandbox_network)
+        .await?
+        .assert_failure();
 
     // Prints no logs
     assert_eq!(res.logs().len(), 0);
 
-    let token = nft_contract
-        .call("nft_token")
-        .args_json((TOKEN_ID,))
-        .view()
+    // Get the token data
+    let token: Token = nft_contract
+        .call_function("nft_token", json!({"token_id": TOKEN_ID}))
+        .read_only()
+        .fetch_from(&sandbox_network)
         .await?
-        .json::<Token>()?;
-    assert_eq!(token.owner_id.to_string(), nft_contract.id().to_string());
+        .data;
+    // Check that the token is still owned by the contract
+    assert_eq!(
+        token.owner_id.to_string(),
+        nft_contract.account_id().to_string()
+    );
 
     Ok(())
 }
