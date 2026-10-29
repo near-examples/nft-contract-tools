@@ -11,26 +11,32 @@ use near_sdk::serde_json::json;
 use near_sdk_contract_tools::nft::{ContractMetadata, TokenMetadata};
 
 static NFT_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let contract_wasm_path = cargo_near_build::build_with_cli(BuildOpts {
+    let artifact = cargo_near_build::build_with_cli(BuildOpts {
         no_abi: true,
         no_embed_abi: true,
         ..Default::default()
     })
     .expect("Could not compile NFT contract for tests");
 
-    let contract_wasm = std::fs::read(contract_wasm_path.clone())
-        .expect(format!("Could not read NFT WASM file from {}", contract_wasm_path).as_str());
+    let contract_wasm = std::fs::read(&artifact)
+        .expect(format!("Could not read NFT WASM file from {}", artifact).as_str());
 
     contract_wasm
 });
 
 static TOKEN_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let contract_wasm_path = "tests/contracts/token-receiver/res/token_receiver.wasm";
+    let artifact_path = cargo_near_build::build_with_cli(BuildOpts {
+        manifest_path: Some("tests/contracts/token-receiver/Cargo.toml".into()),
+        no_abi: true,
+        no_embed_abi: true,
+        ..Default::default()
+    })
+    .expect("Could not compile token-receiver fixture");
 
-    let contract_wasm = std::fs::read(contract_wasm_path).expect(
+    let contract_wasm = std::fs::read(&artifact_path).expect(
         format!(
             "Could not read Token Receiver Contract WASM file from {}",
-            contract_wasm_path
+            artifact_path
         )
         .as_str(),
     );
@@ -39,9 +45,15 @@ static TOKEN_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
 });
 
 static APPROVAL_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
-    let artifact_path = "tests/contracts/approval-receiver/res/approval_receiver.wasm";
+    let artifact_path = cargo_near_build::build_with_cli(BuildOpts {
+        manifest_path: Some("tests/contracts/approval-receiver/Cargo.toml".into()),
+        no_abi: true,
+        no_embed_abi: true,
+        ..Default::default()
+    })
+    .expect("Could not compile approval-receiver fixture");
 
-    let contract_wasm = std::fs::read(artifact_path).expect(
+    let contract_wasm = std::fs::read(&artifact_path).expect(
         format!(
             "Could not read Approval Receiver Contract WASM file from {}",
             artifact_path
@@ -52,13 +64,38 @@ static APPROVAL_RECEIVER_CONTRACT_WASM: LazyLock<Vec<u8>> = LazyLock::new(|| {
     contract_wasm
 });
 
-pub async fn init_sandbox() -> anyhow::Result<(Sandbox, NetworkConfig)> {
+static SANDBOX_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+pub struct TestSandbox {
+    sandbox: Sandbox,
+    _permit: tokio::sync::SemaphorePermit<'static>,
+}
+
+impl std::ops::Deref for TestSandbox {
+    type Target = Sandbox;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sandbox
+    }
+}
+
+pub async fn init_sandbox() -> anyhow::Result<(TestSandbox, NetworkConfig)> {
+    LazyLock::force(&NFT_CONTRACT_WASM);
+    LazyLock::force(&TOKEN_RECEIVER_CONTRACT_WASM);
+    LazyLock::force(&APPROVAL_RECEIVER_CONTRACT_WASM);
+    let permit = SANDBOX_SLOTS.acquire().await?;
     // Initialize the sandbox
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let sandbox_network =
         near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
 
-    Ok((sandbox, sandbox_network))
+    Ok((
+        TestSandbox {
+            sandbox,
+            _permit: permit,
+        },
+        sandbox_network,
+    ))
 }
 pub async fn init_contracts(
     sandbox: &Sandbox,
@@ -76,9 +113,6 @@ pub async fn init_contracts(
         .await
         .unwrap()
         .as_contract();
-    // let token_receiver_contract = worker.dev_deploy(&TOKEN_RECEIVER_CONTRACT_WASM).await?;
-    // let approval_receiver_contract = worker.dev_deploy(&APPROVAL_RECEIVER_CONTRACT_WASM).await?;
-    // let nft_contract = worker.dev_deploy(&NFT_CONTRACT_WASM).await?;
 
     // Initialize signer for the contract deployment
     let signer = near_api::Signer::from_secret_key(
@@ -201,4 +235,19 @@ pub async fn create_subaccount(
         .send()
         .await?;
     Ok(near_api::Account(account_id))
+}
+
+/// Count standardized transfer events, independently of diagnostic/receiver logs.
+pub fn transfer_events(logs: &[&str]) -> usize {
+    logs.iter()
+        .filter(|log| {
+            log.strip_prefix("EVENT_JSON:")
+                .and_then(|json| {
+                    near_sdk::serde_json::from_str::<near_sdk::serde_json::Value>(json).ok()
+                })
+                .is_some_and(|event| {
+                    event["standard"] == "nep171" && event["event"] == "nft_transfer"
+                })
+        })
+        .count()
 }

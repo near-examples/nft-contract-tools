@@ -33,7 +33,7 @@ pub async fn test_simple_approve() -> testresult::TestResult<()> {
 
     // root approves alice
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .max_gas()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
@@ -100,7 +100,7 @@ pub async fn test_simple_approve() -> testresult::TestResult<()> {
 
     // can't approve the same account again
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .max_gas()
         .deposit(ONE_NEAR)
@@ -111,7 +111,7 @@ pub async fn test_simple_approve() -> testresult::TestResult<()> {
 
     // approving another account gives different approval_id
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "approval_id": Some(1u64)}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .max_gas()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
@@ -149,7 +149,7 @@ pub async fn test_approval_with_call() -> testresult::TestResult<()> {
     )
     .await?;
 
-    nft_contract   .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": approval_receiver_contract.account_id().clone(), "approval_id": Option::<String>::None}))
+    let result = nft_contract.call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": approval_receiver_contract.account_id().clone(), "msg": "return-now"}))
         .transaction()
         .max_gas()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
@@ -157,6 +157,7 @@ pub async fn test_approval_with_call() -> testresult::TestResult<()> {
         .send_to(&sandbox_network)
         .await?
         .assert_success();
+    assert_eq!(result.json::<String>()?, "cool");
 
     Ok(())
 }
@@ -190,7 +191,8 @@ pub async fn test_approval_with_call_and_different_msg() -> testresult::TestResu
         .deposit(ONE_YOCTO)
         .with_signer(nft_contract.account_id().clone(), signer.clone())
         .send_to(&sandbox_network)
-        .await?;
+        .await?
+        .assert_success();
 
     assert_eq!(res.json::<String>()?, msg);
     Ok(())
@@ -227,7 +229,7 @@ pub async fn test_approved_account_transfers_token() -> testresult::TestResult<(
 
     // root approves alice
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
         .max_gas()
@@ -283,7 +285,7 @@ pub async fn test_revoke() -> testresult::TestResult<()> {
 
     // root approves alice
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
         .max_gas()
@@ -294,7 +296,7 @@ pub async fn test_revoke() -> testresult::TestResult<()> {
 
     // root approves token_receiver
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
         .max_gas()
@@ -401,7 +403,7 @@ pub async fn test_revoke_all() -> testresult::TestResult<()> {
 
     // root approves alice
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": alice.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
         .max_gas()
@@ -412,7 +414,7 @@ pub async fn test_revoke_all() -> testresult::TestResult<()> {
 
     // root approves token_receiver
     nft_contract
-        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "approval_id": Option::<String>::None}))
+        .call_function("nft_approve", json!({"token_id": TOKEN_ID, "account_id": token_receiver_contract.account_id().clone(), "msg": Option::<String>::None}))
         .transaction()
         .deposit(NearToken::from_yoctonear(550000000000000000000))
         .max_gas()

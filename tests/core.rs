@@ -96,7 +96,7 @@ async fn test_transfer_to_registered_account() -> testresult::TestResult<()> {
     .await?;
 
     // Transfer the NFT to the alice account
-    nft_contract
+    let result = nft_contract
         .call_function("nft_transfer", json!({"receiver_id": alice.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("simple transfer".to_string())}))
         .transaction()
         .deposit(ONE_YOCTO)
@@ -104,6 +104,7 @@ async fn test_transfer_to_registered_account() -> testresult::TestResult<()> {
         .send_to(&sandbox_network)
         .await?
         .assert_success();
+    assert_eq!(common::transfer_events(&result.logs()), 1);
 
     // Get the token data
     let token: Token = nft_contract
@@ -255,7 +256,7 @@ async fn test_transfer_call_fast_keep_with_sender() -> testresult::TestResult<()
     .await?;
 
     // Transfer the NFT to the token receiver contract and call the keep-it-now function
-    nft_contract
+    let result = nft_contract
         .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("keep-it-now".to_string())}))
         .transaction()
         .deposit(ONE_YOCTO)
@@ -263,6 +264,7 @@ async fn test_transfer_call_fast_keep_with_sender() -> testresult::TestResult<()
         .send_to(&sandbox_network)
         .await?
         .assert_success();
+    assert_eq!(common::transfer_events(&result.logs()), 1);
 
     // Get the token data
     let token: Token = nft_contract
@@ -363,7 +365,7 @@ async fn test_transfer_call_receiver_panics() -> testresult::TestResult<()> {
     .await?;
 
     // Transfer the NFT to the token receiver contract and pass an incorrect message to trigger a panic
-    nft_contract
+    let result = nft_contract
         .call_function("nft_transfer_call", json!({"receiver_id": token_receiver_contract.account_id().clone(), "token_id": TOKEN_ID, "memo": Some("transfer & call".to_string()), "msg": Some("incorrect message".to_string())}))
         .transaction()
         .deposit(ONE_YOCTO)
@@ -372,6 +374,7 @@ async fn test_transfer_call_receiver_panics() -> testresult::TestResult<()> {
         .send_to(&sandbox_network)
         .await?
         .assert_success();
+    assert_eq!(common::transfer_events(&result.logs()), 2);
 
     // Get the token data
     let token: Token = nft_contract
